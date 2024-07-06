@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    const GAME_WIDTH = 800;
+    const GAME_HEIGHT = 600;
+    const BASE_INITIAL_SPEED = 8;
+    const BRICK_COLS = 10;
+    const BRICK_ROWS = 14;
+
+    let canvas;
+    let canvasContext;
+    let brickGrid = new Array(BRICK_COLS * BRICK_ROWS);
+
+
+    let initialSpeed = BASE_INITIAL_SPEED;
+
+    class Brick {
+      constructor(x, y) {
+        this.x = x || 0;
+        this.y = y || 0;
+        this.width = 80;
+        this.height = 20;
+        this.gap = 2;
+      }
+
+      draw() {
+       colorRect(this.x + this.gap, this.y + this.gap, this.width - this.gap, this.height - this.gap, 'blue')
+      }
+    }
+
+    class Ball {
+      constructor() {
+        this.width = 10;
+        this.radius = this.width / 2;
+        this.x = GAME_WIDTH / 2;
+        this.y = GAME_HEIGHT / 2;
+        this.speedX = BASE_INITIAL_SPEED;
+        this.speedY = BASE_INITIAL_SPEED;
+      }
+    }
+    let ball = new Ball;
+
+    class Paddle {
+      constructor(gameWidth, gameHeight) {
+        this.width = 100;
+        this.height = 20;
+        this.x = gameWidth / 2 - this.width/2;
+        this.y = Math.floor(gameHeight - this.height - gameHeight / 10);
+      }
+    }
+    let paddle = new Paddle(GAME_WIDTH, GAME_HEIGHT)
+
+    let score = 0;
+
+    function ballReset() {
+      ball = new Ball;
+    }
+
+    function gameReset() {
+    }
+
+    function drawBricks() {
+      for (let row = 0; row < BRICK_ROWS; row++) {
+        for (let col = 0; col < BRICK_COLS; col++) {
+          const brick = new Brick;
+
+          brick.x = col * brick.width;
+          brick.y = row * brick.height;
+          brick.draw();
+        }
+      }
+    }
+
+    window.onload = function() {
+      canvas = document.getElementById('gameCanvas'); // this object holds the HTML canvas dimensions
+      canvasContext = canvas.getContext('2d'); // this object lets one draw on or manipulate the canvas
+      canvas.style.cursor = 'crosshair';
+      // ballReset();
+      canvas.addEventListener('mousemove', function(e) {
+        const mousePos = getMouse(e);
+        let newPaddlePosition = mousePos.x - (paddle.width/2);
+        if (newPaddlePosition < 0) newPaddlePosition = 0;
+        if (newPaddlePosition > GAME_WIDTH - paddle.width) newPaddlePosition = GAME_WIDTH - paddle.width;
+        paddle.x = newPaddlePosition;
+      })
+
+      let framesPerSecond = 30;
+      setInterval(function() {
+        moveEverything();
+        drawEverything();
+      }, 1000/framesPerSecond);
+    }
+
+    function getMouse(e) {
+      const rect = canvas.getBoundingClientRect();
+      const root = document.documentElement;
+
+      // account for margins, canvas position on page, scroll amount
+      const mouseX = e.clientX - rect.left - root.scrollLeft;
+      const mouseY = e.clientY - rect.top - root.scrollTop;
+      return {
+        x: mouseX,
+        y: mouseY,
+      };
+    }
+
+    function moveEverything() {
+      // horizontal boundary
+      if (   ball.x + ball.radius >= GAME_WIDTH 
+          || ball.x - ball.radius <= 0
+        ) {
+        ball.speedX *= -1;
+      }
+      // top vertical boundary
+      if (ball.y - ball.radius <= 0) {
+        ball.speedY *= -1;
+      }
+      // bottom vertical boundary
+      if (ball.y >= GAME_HEIGHT) {
+        ballReset();
+      }
+
+      if (ball.y + ball.radius >= paddle.y && ball.y <= paddle.y + paddle.height) {
+        const paddlehit = ball.x + ball.radius >= paddle.x && ball.x - ball.radius <= paddle.x + paddle.width;
+        if (paddlehit) {
+          const deltaX = ball.x - (paddle.x  + paddle.width/ 2);
+          ball.speedX = deltaX * 0.35;
+          ball.speedY *= -1;
+        }
+      }
+
+      ball.x += ball.speedX;
+      ball.y += ball.speedY;
+    }
+
+    function colorRect(x, y, width, height, color) {
+      const prevColor = canvasContext.fillStyle;
+      canvasContext.fillStyle = color;
+      canvasContext.fillRect(x, y, width, height);
+      if (prevColor) {
+        canvasContext.fillStyle = prevColor;
+      }
+    }
+
+    function colorCircle(cx, cy, radius, color) {
+      const prevColor = canvasContext.fillStyle;
+      canvasContext.fillStyle = color;
+      canvasContext.beginPath();
+      canvasContext.arc(cx, cy, radius, Math.PI*2, 0, true);
+      canvasContext.fill();
+      if (prevColor) {
+        canvasContext.fillStyle = prevColor;
+      }
+    }
+    
+    function drawEverything() {
+      canvasContext.textAlign = 'center';
+      // draw the background
+      colorRect(0,0,canvas.width, canvas.height, 'black');
+
+      // draw the bricks
+      drawBricks();
+
+      // draw the ball
+      colorCircle(ball.x, ball.y, ball.width, 'white');
+
+      // draw paddle along the bottom of the screen
+      colorRect(paddle.x, paddle.y, paddle.width, paddle.height, 'white');
+
+      // draw score
+      // canvasContext.fillStyle = 'white';
+      // canvasContext.font = 'bold 24px sans-serif';
+      // canvasContext.fillText(player1Score, 100, 100);
+
+    }
+  </script>
+</body>
+</html>
