@@ -13,27 +13,19 @@
     const BASE_INITIAL_SPEED = 8;
     const BRICK_COLS = 10;
     const BRICK_ROWS = 14;
+    const BRICK_WIDTH = 80;
+    const BRICK_HEIGHT = 20;
+    const BRICK_GAP = 2;
 
     let canvas;
     let canvasContext;
-    let brickGrid = new Array(BRICK_COLS * BRICK_ROWS);
+    let remainingBricks = BRICK_COLS * BRICK_ROWS;
+    let brickGrid = new Array(remainingBricks);
 
 
     let initialSpeed = BASE_INITIAL_SPEED;
 
-    class Brick {
-      constructor(x, y) {
-        this.x = x || 0;
-        this.y = y || 0;
-        this.width = 80;
-        this.height = 20;
-        this.gap = 2;
-      }
-
-      draw() {
-       colorRect(this.x + this.gap, this.y + this.gap, this.width - this.gap, this.height - this.gap, 'blue')
-      }
-    }
+    
 
     class Ball {
       constructor() {
@@ -66,15 +58,113 @@
     function gameReset() {
     }
 
-    function drawBricks() {
-      for (let row = 0; row < BRICK_ROWS; row++) {
-        for (let col = 0; col < BRICK_COLS; col++) {
-          const brick = new Brick;
+    // class Brick {
+    //   constructor(x, y) {
+    //     this.x = x || 0;
+    //     this.y = y || 0;
+    //     this.width = 80;
+    //     this.height = 20;
+    //     this.gap = 2;
+    //   }
 
-          brick.x = col * brick.width;
-          brick.y = row * brick.height;
-          brick.draw();
+    //   draw() {
+    //    colorRect(this.x + this.gap, this.y + this.gap, this.width - this.gap, this.height - this.gap, 'blue')
+    //   }
+    // }
+
+    function drawBricks() {
+      for (let col = 0; col < BRICK_COLS; col++) {
+        for (let row = 0; row < BRICK_ROWS; row++) {
+          if (isBrickAtTileCoord(col, row)) {
+
+            const brickX = col * BRICK_WIDTH;
+            const brickY = row * BRICK_HEIGHT;
+            
+            colorRect(brickX + BRICK_GAP, brickY + BRICK_GAP, BRICK_WIDTH - BRICK_GAP, BRICK_HEIGHT - BRICK_GAP, 'blue');
+          }
         }
+      }
+    }
+
+    function resetBricks() {
+      for(let i=0; i < BRICK_COLS * BRICK_ROWS; i++) {
+        if (i < 3 * BRICK_COLS) {
+        
+          brickGrid[i] = 0;
+        }else {
+          brickGrid[i] = 1;
+        }
+      }
+      remainingBricks = BRICK_COLS * BRICK_ROWS - 3 * BRICK_COLS;
+      console.log(brickGrid);
+    }
+
+    function brickTileToIndex(col, row) {
+      return (col + BRICK_COLS * row); // returns a given tile's index within the brickGrid[]
+    }
+    
+    function isBrickAtTileCoord(brickCol, brickRow) {
+      let brickIndex = brickCol + BRICK_COLS * brickRow;
+      return (brickGrid[brickIndex] == 1);
+    }
+    
+    // function removeBrickAtPxCoord(pixelX, pixelY) {
+    //   colNum = Math.floor(pixelX / BRICK_WIDTH);
+    //   rowNum = Math.floor(pixelY / BRICK_HEIGHT);
+    //   brickIndex = colNum + rowNum * 10;
+    //   if (brickGrid[brickIndex]) {
+    //     brickGrid[brickIndex] = 0;
+    //     return true;
+    //   } else {
+    //     return false;
+    //   }
+    // }
+
+    function breakAndBounceOffBrickAtPixelCoord(pixelX, pixelY) {
+      const tileCol = Math.floor(pixelX / BRICK_WIDTH);
+      const tileRow = Math.floor(pixelY / BRICK_HEIGHT);
+
+      if(tileCol < 0 || tileCol >= BRICK_COLS || tileRow < 0 || tileRow >= BRICK_ROWS) {
+        return false; // avoid accessing non-existent index in brick array
+      }
+
+      const brickIndex = brickTileToIndex(tileCol, tileRow);
+
+      if(brickGrid[brickIndex] == 1) {
+        // determine if row and/or col changed to enter current brick tile
+        const prevBallX = ball.x - ball.speedX;
+        const prevBallY = ball.y - ball.speedY;
+        const prevTileCol = Math.floor(prevBallX / BRICK_WIDTH);
+        const prevTileRow = Math.floor(prevBallY / BRICK_HEIGHT);
+
+        let bothTestsFailed = true;
+
+        if (prevTileCol != tileCol) { // horiz. entry
+          const adjacentBrickIndex = brickTileToIndex(prevTileCol, tileRow);
+          // make sure the side we want to reflect off isn't blocked
+          if(brickGrid[adjacentBrickIndex] != 1) {
+            ball.speedX *= -1;
+            bothTestsFailed = false;
+          }
+        }
+
+        if (prevTileRow != tileRow) { // vert. entry
+          const adjacentBrickIndex = brickTileToIndex(tileCol, prevTileRow);
+          // make sure the reflection side isn't blocked
+          if(brickGrid[adjacentBrickIndex] != 1) {
+            ball.speedY *= -1;
+            bothTestsFailed = false;
+          }
+        }
+
+        // we hit an "armpit" on the inside corner, flip both to avoid going into it
+        if (bothTestsFailed) {
+          ball.speedX *= -1;
+          ball.speedY *= -1;
+        }
+
+        brickGrid[brickIndex] = 0; // Remove the brick that was hit
+        remainingBricks -= 1;
       }
     }
 
@@ -82,13 +172,18 @@
       canvas = document.getElementById('gameCanvas'); // this object holds the HTML canvas dimensions
       canvasContext = canvas.getContext('2d'); // this object lets one draw on or manipulate the canvas
       canvas.style.cursor = 'crosshair';
-      // ballReset();
+      resetBricks();
+
       canvas.addEventListener('mousemove', function(e) {
         const mousePos = getMouse(e);
         let newPaddlePosition = mousePos.x - (paddle.width/2);
         if (newPaddlePosition < 0) newPaddlePosition = 0;
         if (newPaddlePosition > GAME_WIDTH - paddle.width) newPaddlePosition = GAME_WIDTH - paddle.width;
         paddle.x = newPaddlePosition;
+
+        // DEBUG CODE - uncomment to directly control the ball position with the mouse cursor
+        // ball.x = mousePos.x;
+        // ball.y = mousePos.y;
       })
 
       let framesPerSecond = 30;
@@ -113,7 +208,7 @@
 
     function moveEverything() {
       // horizontal boundary
-      if (   ball.x + ball.radius >= GAME_WIDTH 
+      if (ball.x + ball.radius >= GAME_WIDTH 
           || ball.x - ball.radius <= 0
         ) {
         ball.speedX *= -1;
@@ -130,11 +225,23 @@
       if (ball.y + ball.radius >= paddle.y && ball.y <= paddle.y + paddle.height) {
         const paddlehit = ball.x + ball.radius >= paddle.x && ball.x - ball.radius <= paddle.x + paddle.width;
         if (paddlehit) {
+          // Check if all bricks have already been cleared. If so, reset the game.
+          if (remainingBricks == 0) {
+            resetBricks();
+          }
+
+          // Else, deal with the paddlehit
           const deltaX = ball.x - (paddle.x  + paddle.width/ 2);
           ball.speedX = deltaX * 0.35;
           ball.speedY *= -1;
         }
       }
+
+      // const shouldBounce = removeBrickAtPxCoord(ball.x, ball.y);
+      // if (shouldBounce) {
+      //   ball.speedY *= -1;
+      // }
+      breakAndBounceOffBrickAtPixelCoord(ball.x, ball.y);
 
       ball.x += ball.speedX;
       ball.y += ball.speedY;
